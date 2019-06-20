@@ -97,6 +97,6 @@ Store.prototype.createSession = function(req, sess){
   // keep originalMaxAge intact
   sess.cookie.originalMaxAge = originalMaxAge
 
-  req.session = new Session(req, sess);
-  return req.session;
+  req.redisSession = new Session(req, sess.cookie);
+  return req.redisSession;
 };

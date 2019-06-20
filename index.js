@@ -157,11 +157,11 @@ function session(options) {
   // generates the new session
   store.generate = function(req){
     req.sessionID = generateId(req);
-    req.session = new Session(req);
-    req.session.cookie = new Cookie(cookieOptions);
+    req.redisSession = new Session(req, req.session);
+    req.redisSession.cookie = new Cookie(cookieOptions);
 
     if (cookieOptions.secure === 'auto') {
-      req.session.cookie.secure = issecure(req, trustProxy);
+      req.redisSession.cookie.secure = issecure(req, trustProxy);
     }
   };
 
@@ -178,7 +178,7 @@ function session(options) {
 
   return function session(req, res, next) {
     // self-awareness
-    if (req.session) {
+    if (req.redisSession) {
       next()
       return
     }
@@ -218,7 +218,7 @@ function session(options) {
 
     // set-cookie
     onHeaders(res, function(){
-      if (!req.session) {
+      if (!req.redisSession) {
         debug('no session');
         return;
       }
@@ -228,19 +228,19 @@ function session(options) {
       }
 
       // only send secure cookies via https
-      if (req.session.cookie.secure && !issecure(req, trustProxy)) {
+      if (req.redisSession.cookie.secure && !issecure(req, trustProxy)) {
         debug('not secured');
         return;
       }
 
       if (!touched) {
         // touch session
-        req.session.touch()
+        req.redisSession.touch()
         touched = true
       }
 
       // set cookie
-      setcookie(res, name, req.sessionID, secrets[0], req.session.cookie.data);
+      setcookie(res, name, req.sessionID, secrets[0], req.redisSession.cookie.data);
     });
 
     // proxy end() to commit the session
@@ -316,19 +316,19 @@ function session(options) {
       }
 
       // no session to save
-      if (!req.session) {
+      if (!req.redisSession) {
         debug('no session');
         return _end.call(res, chunk, encoding);
       }
 
       if (!touched) {
         // touch session
-        req.session.touch()
+        req.redisSession.touch()
         touched = true
       }
 
       if (shouldSave(req)) {
-        req.session.save(function onsave(err) {
+        req.redisSession.save(function onsave(err) {
           if (err) {
             defer(next, err);
           }
@@ -340,7 +340,7 @@ function session(options) {
       } else if (storeImplementsTouch && shouldTouch(req)) {
         // store implements touch method
         debug('touching');
-        store.touch(req.sessionID, req.session, function ontouch(err) {
+        store.touch(req.sessionID, req.redisSession, function ontouch(err) {
           if (err) {
             defer(next, err);
           }
@@ -359,8 +359,8 @@ function session(options) {
     function generate() {
       store.generate(req);
       originalId = req.sessionID;
-      originalHash = hash(req.session);
-      wrapmethods(req.session);
+      originalHash = hash(req.redisSession);
+      wrapmethods(req.redisSession);
     }
 
     // inflate the session
@@ -373,7 +373,7 @@ function session(options) {
         savedHash = originalHash
       }
 
-      wrapmethods(req.session)
+      wrapmethods(req.redisSession)
     }
 
     // wrap session methods
@@ -384,7 +384,7 @@ function session(options) {
       function reload(callback) {
         debug('reloading %s', this.id)
         _reload.call(this, function () {
-          wrapmethods(req.session)
+          wrapmethods(req.redisSession)
           callback.apply(this, arguments)
         })
       }
@@ -422,7 +422,7 @@ function session(options) {
 
     // determine if session should be destroyed
     function shouldDestroy(req) {
-      return req.sessionID && unsetDestroy && req.session == null;
+      return req.sessionID && unsetDestroy && req.redisSession == null;
     }
 
     // determine if session should be saved to store
@@ -434,8 +434,8 @@ function session(options) {
       }
 
       return !saveUninitializedSession && cookieId !== req.sessionID
-        ? isModified(req.session)
-        : !isSaved(req.session)
+        ? isModified(req.redisSession)
+        : !isSaved(req.redisSession)
     }
 
     // determine if session should be touched
@@ -457,8 +457,8 @@ function session(options) {
       }
 
       return cookieId !== req.sessionID
-        ? saveUninitializedSession || isModified(req.session)
-        : rollingSessions || req.session.cookie.expires != null && isModified(req.session);
+        ? saveUninitializedSession || isModified(req.redisSession)
+        : rollingSessions || req.redisSession.cookie.expires != null && isModified(req.redisSession);
     }
 
     // generate a session if the browser doesn't send a sessionID

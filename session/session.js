@@ -21,7 +21,9 @@ module.exports = Session;
  * @api private
  */
 
-function Session(req, data) {
+function Session(req, cookie) {
+  var data = req.session;
+
   Object.defineProperty(this, 'req', { value: req });
   Object.defineProperty(this, 'id', { value: req.sessionID });
 
@@ -33,6 +35,8 @@ function Session(req, data) {
       }
     }
   }
+
+  this.cookie = cookie;
 }
 
 /**
@@ -69,6 +73,15 @@ defineMethod(Session.prototype, 'resetMaxAge', function resetMaxAge() {
  */
 
 defineMethod(Session.prototype, 'save', function save(fn) {
+  if (typeof this.req.session === 'object' && this.req.session !== null) {
+    // merge this.req.session into this, ignoring prototype properties
+    for (var prop in this.req.session) {
+      if (!(prop in this) && prop !== 'length' && prop !== 'populated') {
+        this[prop] = this.req.session[prop]
+      }
+    }
+  }
+
   this.req.sessionStore.set(this.id, this, fn || function(){});
   return this;
 });
